@@ -434,7 +434,7 @@ body:not(.light) .logo.brand .lg{background:#fff;border-radius:10px;padding:3px 
 .apr input,.apr select{flex:1;min-width:0;background:#0b0d12;border:1px solid #ffffff2a;color:#fff;border-radius:10px;padding:10px 12px;font:15px system-ui}
 .apr input:focus,.apr select:focus{outline:none;border-color:#2aa0ff}.adk details{margin-top:8px;font-size:13px;color:#cbd2de}.adk summary{cursor:pointer;padding:6px 0}
 .apv{display:none;width:48px;height:48px;object-fit:cover;border-radius:8px;background:#fff;flex:none}.apr textarea{flex:1;min-width:0;background:#0b0d12;border:1px solid #ffffff2a;color:#fff;border-radius:10px;padding:10px 12px;font:15px system-ui}.apr input[type=file]{padding:6px;font-size:12px}
-</style><style>img{max-width:100%}img:not([src]),img[src=""]{visibility:hidden}.aac .buy:disabled{opacity:.65;cursor:wait}</style></head><body>
+</style></head><body>
 <div id="pb"></div><div class="offer"><div class="dw dl" aria-hidden="true"><svg class="dlt" viewBox="0 0 120 16" preserveAspectRatio="none"><path d="M0,1 Q60,12 120,1" fill="none" stroke="#2b2f3a" stroke-width="1.1"/><line x1="12.0" y1="3.0" x2="12.0" y2="5.0" stroke="#2b2f3a" stroke-width="1"/><circle class="bb b0" cx="12.0" cy="7.2" r="2.3" fill="#ff4d4d"/><line x1="36.0" y1="5.6" x2="36.0" y2="7.6" stroke="#2b2f3a" stroke-width="1"/><circle class="bb b1" cx="36.0" cy="9.8" r="2.3" fill="#ffd23f"/><line x1="60.0" y1="6.5" x2="60.0" y2="8.5" stroke="#2b2f3a" stroke-width="1"/><circle class="bb b2" cx="60.0" cy="10.7" r="2.3" fill="#5be38a"/><line x1="84.0" y1="5.6" x2="84.0" y2="7.6" stroke="#2b2f3a" stroke-width="1"/><circle class="bb b3" cx="84.0" cy="9.8" r="2.3" fill="#ff8c1a"/><line x1="108.0" y1="3.0" x2="108.0" y2="5.0" stroke="#2b2f3a" stroke-width="1"/><circle class="bb b4" cx="108.0" cy="7.2" r="2.3" fill="#ff5bd0"/></svg>
 <svg class="diya" viewBox="0 0 44 44"><defs><radialGradient id="gla"><stop offset="0" stop-color="#ffb300" stop-opacity=".7"/><stop offset="1" stop-color="#ffb300" stop-opacity="0"/></radialGradient><linearGradient id="fga" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#ff5e00"/><stop offset=".55" stop-color="#ffb703"/><stop offset="1" stop-color="#fff3b0"/></linearGradient><linearGradient id="bwa" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffb347"/><stop offset=".5" stop-color="#e07a1f"/><stop offset="1" stop-color="#8f3f08"/></linearGradient></defs>
 <circle class="glow" cx="22" cy="14" r="15" fill="url(#gla)"/>
@@ -836,11 +836,17 @@ PR.forEach(function(p){p.p0=p.p});
 function pz(k){var m=1e9;PR.forEach(function(p){if(p.k==k&&p.p<m)m=p.p});return m}
 function cfgSet(c){CFG={prices:(c&&c.prices)||{},coupons:(c&&c.coupons)||{}};PR.forEach(function(p){var v=CFG.prices['i_'+p.id];if(v==null)v=CFG.prices['g_'+p.k];p.p=v>0?+v:p.p0});var s=JSON.stringify(CFG),ch=s!=CSIG;CSIG=s;return ch}
 function cfgKeep(){try{localStorage.setItem('vcfg',JSON.stringify(CFG))}catch(e){}}
-function cput2(path,v){if(!CLOUD)return Promise.resolve();return fetch(cu(path),{method:v===null?'DELETE':'PUT',headers:{'Content-Type':'application/json'},body:v===null?undefined:JSON.stringify(v)}).then(function(r){if(!r.ok)throw 0})}
+function cput2(path,v){
+ if(CLOUD)return fetch(cu(path),{method:v===null?'DELETE':'PUT',headers:{'Content-Type':'application/json'},body:v===null?undefined:JSON.stringify(v)}).then(function(r){if(!r.ok)throw new Error('Cloud database write failed ('+r.status+')')});
+ if(!sbReady())return Promise.resolve();
+ if(path==='/pver')return sbRest('store_meta?on_conflict=key',{method:'POST',headers:{'Prefer':'resolution=merge-duplicates,return=minimal'},body:JSON.stringify({key:'products_version',value:String(v)})});
+ var m=path.match(/^\/products\/(\d+)$/);if(m){var id=+m[1];if(v===null)return sbRest('store_products?id=eq.'+id,{method:'DELETE'});return sbRest('store_products?on_conflict=id',{method:'POST',headers:{'Prefer':'resolution=merge-duplicates,return=minimal'},body:JSON.stringify({id:id,data:v})})}
+ return Promise.resolve()
+}
 (function(){var l=null;try{l=JSON.parse(localStorage.getItem('vcfg')||'null')}catch(e){}cfgSet(l||CFGD)})();
 function cfgLoad(){if(!CLOUD)return Promise.resolve(0);
  return Promise.all([fetch(cu('/prices')).then(function(r){return r.json()}),fetch(cu('/coupons')).then(function(r){return r.json()})]).then(function(a){var ch=cfgSet({prices:a[0]||{},coupons:a[1]||CFGD.coupons});if(ch)cfgKeep();return ch}).catch(function(){return 0})}
-function cfgPoll(){Promise.all([cfgLoad(),cpLoad()]).then(function(a){var ch=a[0]||a[1],h=location.hash.slice(1);if(ch&&h!='checkout'&&h!='admin'&&!(document.activeElement&&document.activeElement.tagName=='INPUT'))route()})}
+function cfgPoll(){Promise.all([cfgLoad(),cpLoad()]).then(function(a){var ch=a[0]||a[1],h=location.hash.slice(1);if(ch&&h==='admin'&&document.getElementById('apd'))adProducts();else if(ch&&h!='checkout'&&h!='admin'&&!(document.activeElement&&document.activeElement.tagName=='INPUT'))route()})}
 cfgPoll();setInterval(cfgPoll,60000);
 function cpOk(c,sub){if(!c||!c.on)return 'Invalid coupon code';if(c.exp&&Date.now()>new Date(c.exp+'T23:59:59').getTime())return 'This coupon has expired';if(c.lim&&(c.used||0)>=c.lim)return 'This coupon is fully used';if(c.min&&sub<c.min)return 'Minimum order '+inr(c.min)+' required';return ''}
 function cDisc(sub){var c=promo&&CFG.coupons[promo];if(!c||cpOk(c,sub))return 0;var d=c.t=='f'?c.v:Math.round(sub*c.v/100);if(c.t!='f'&&c.max)d=Math.min(d,c.max);return Math.min(d,sub)}
@@ -880,7 +886,11 @@ function cDel(k){if(!confirm('Delete coupon '+k+'?'))return;delete CFG.coupons[k
 function cCopy(k){try{navigator.clipboard.writeText(k);toast('Copied '+k)}catch(e){prompt('Copy:',k)}}
 
 /* ===== CUSTOM PRODUCTS ===== */
-function cpLoad(){if(!CLOUD)return Promise.resolve(0);return fetch(cu('/pver')).then(function(r){return r.json()}).then(function(v){v=String(v||'');if(v===CPV&&cpSig)return 0;return fetch(cu('/products')).then(function(r){return r.json()}).then(function(m){cpSet(m||{});cfgSet(CFG);CPV=v;cpSig=1;cpKeep();try{localStorage.setItem('vpv',v)}catch(e){}cart=cart.filter(function(c){return PR[c.id]});save();return 1})}).catch(function(){return 0})}
+function cpLoad(){
+ if(CLOUD)return fetch(cu('/pver')).then(function(r){if(!r.ok)throw new Error('version read failed');return r.json()}).then(function(v){v=String(v||'');if(v===CPV&&cpSig)return 0;return fetch(cu('/products')).then(function(r){if(!r.ok)throw new Error('products read failed');return r.json()}).then(function(m){cpSet(m||{});CPV=v;cpSig=1;cpKeep();try{localStorage.setItem('vpv',v)}catch(e){}cart=cart.filter(function(c){return PR[c.id]});save();return 1})}).catch(function(){return 0});
+ if(!sbReady())return Promise.resolve(0);
+ return sbRest('store_meta?select=value&key=eq.products_version').then(function(meta){var v=meta&&meta[0]?String(meta[0].value||''):'';if(v===CPV&&cpSig)return 0;return sbRest('store_products?select=id,data&order=id.asc').then(function(rows){var map={};(rows||[]).forEach(function(row){if(row&&row.data)map[row.id]=row.data});cpSet(map);CPV=v;cpSig=1;cpKeep();try{localStorage.setItem('vpv',v)}catch(e){}cart=cart.filter(function(c){return PR[c.id]});save();return 1})}).catch(function(err){console.warn('Supabase product sync:',err);return 0})
+}
 function cBox(p){return '<div class="box"><img src="'+p.main+'" alt="'+esc(p.n)+'" draggable="false" style="width:100%;height:100%;object-fit:contain"></div><div class="nm">'+esc(p.n)+'<br><b style="color:#111;font-size:13px;letter-spacing:0">'+inr(p.p)+'</b></div>'}
 function cRows(mk,rp,cc){var K=[],seen={},t={};PR.forEach(function(p){if(p.cu&&/^r_/.test(p.row)&&!seen[p.row]){seen[p.row]=1;K.push(p.row);t[p.row]=p.rowT}});
  return K.map(function(k,i){var n=PR.filter(function(p){return p.cu&&p.row==k}).length,c=cc(n);return '<div class="rh rv"><i></i><div><b>'+esc(t[k]).toUpperCase()+'</b><small>'+n+' ITEM'+(n>1?'S':'')+'</small></div><i></i></div><div class="stg"><div class="rl"></div><div class="trk" data-n="'+c+'" data-d="'+(i%2?-1:1)+'">'+rp(mk(k),c)+'</div></div>'}).join('')}
@@ -911,32 +921,70 @@ function adProducts(){var rows=[['x','Budani Tee row'],['h','Hoodies row'],['l',
  h+=L.length?L.map(function(p){return '<div class="adk"><div class="oh" style="align-items:center;gap:12px"><img class="apv" style="display:block;width:64px;height:64px" src="'+p.main+'"><div style="flex:1"><b>'+esc(p.n)+'</b><small style="display:block;margin-top:4px">'+inr(p.p)+' \u00b7 '+(p.cat=='shoe'?'Shoes (UK 6-10)':'Clothes (S-XXL)')+' \u00b7 '+esc(/^r_/.test(p.row)?p.rowT:({x:'Budani Tee',h:'Hoodies',l:'Lowers',c:'Cargo Pants',s:'Shoes'})[p.row])+' row</small></div></div><div class="aac"><button class="back" onclick="pdEdit('+p.id+')">Edit</button><button class="back dng" onclick="pdDel('+p.id+')">Delete</button></div></div>'}).join(''):'<div class="nf">No custom products yet.</div>';
  document.getElementById('apd').innerHTML=h;pdSz()}
 function pdSz(){var c=document.getElementById('pd_c'),z=document.getElementById('pd_sz');if(c&&z)z.textContent='Sizes (auto): '+(c.value=='shoe'?'UK 6, 7, 8, 9, 10':'S, M, L, XL, XXL')}
-/* Product image hosting: configure your Supabase project below. Keep the bucket public for public product images. */
-var SB_URL='https://tyyfcwrlpdalxwnvrtni.supabase.co';
-var SB_ANON_KEY='sb_publishable_K6x1iXvP5YI4a_0UoKP1Dw_lW_HdIyz';
+/* Supabase image + product sync. Fill these values from Project Settings -> API. */
+var SB_URL='https://YOUR-PROJECT.supabase.co';
+var SB_ANON_KEY='YOUR_SUPABASE_ANON_KEY';
 var SB_BUCKET='product-images';
-function sbReady(){return /^https:\/\/[a-z0-9-]+\.supabase\.co$/i.test(SB_URL)&&SB_ANON_KEY&&SB_ANON_KEY!=='YOUR_SUPABASE_ANON_KEY'}
+function sbReady(){return /^https:\/\/[a-z0-9-]+\.supabase\.co$/i.test(SB_URL)&&!!SB_ANON_KEY&&SB_ANON_KEY!=='YOUR_SUPABASE_ANON_KEY'}
+function sbHeaders(extra){var h={'apikey':SB_ANON_KEY,'Authorization':'Bearer '+SB_ANON_KEY};Object.keys(extra||{}).forEach(function(k){h[k]=extra[k]});return h}
+function sbErr(r){return r.text().then(function(t){var msg=t;try{var j=JSON.parse(t);msg=j.message||j.error_description||j.error||t}catch(e){}throw new Error('Supabase error ('+r.status+'): '+String(msg).slice(0,220))})}
 function sbUpload(blob,slot){
- if(!sbReady())return Promise.reject(new Error('Supabase setup missing: index.html mein SB_URL aur SB_ANON_KEY set karo.'));
+ if(!sbReady())return Promise.reject(new Error('Supabase setup missing: SB_URL aur SB_ANON_KEY set karo.'));
  var ext=(blob.type==='image/png'?'png':'webp'),name='products/'+Date.now()+'-'+Math.random().toString(36).slice(2,10)+'-'+slot+'.'+ext;
- return fetch(SB_URL.replace(/\/$/, '')+'/storage/v1/object/'+encodeURIComponent(SB_BUCKET)+'/'+name,{method:'POST',headers:{'apikey':SB_ANON_KEY,'Authorization':'Bearer '+SB_ANON_KEY,'Content-Type':blob.type||'image/webp','x-upsert':'true'},body:blob})
- .then(function(r){if(!r.ok)return r.text().then(function(t){throw new Error('Image upload failed ('+r.status+'): '+t.slice(0,180))});return SB_URL.replace(/\/$/,'')+'/storage/v1/object/public/'+encodeURIComponent(SB_BUCKET)+'/'+name})
+ return fetch(SB_URL.replace(/\/$/,'')+'/storage/v1/object/'+encodeURIComponent(SB_BUCKET)+'/'+name,{method:'POST',headers:sbHeaders({'Content-Type':blob.type||'image/webp','x-upsert':'true'}),body:blob})
+ .then(function(r){if(!r.ok)return sbErr(r);return SB_URL.replace(/\/$/,'')+'/storage/v1/object/public/'+encodeURIComponent(SB_BUCKET)+'/'+name})
 }
-function pdImg(inp,sl){var f=inp.files&&inp.files[0];if(!f)return;if(!/^image\//.test(f.type)){toast('Image file hi select karo');inp.value='';return}if(f.size>12*1024*1024){toast('Image 12 MB se chhoti rakho');inp.value='';return}
- var r=new FileReader();r.onload=function(){var im=new Image();im.onload=function(){var m=sl==='main'?1000:1200,sc=Math.min(1,m/Math.max(im.width,im.height)),c=document.createElement('canvas');c.width=Math.max(1,Math.round(im.width*sc));c.height=Math.max(1,Math.round(im.height*sc));var x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,c.width,c.height);x.drawImage(im,0,0,c.width,c.height);c.toBlob(function(blob){if(!blob){toast('Image process nahi hui');return}PE.files=PE.files||{};PE.files[sl]=blob;var u=URL.createObjectURL(blob);if(sl==='main')PE.main=u;else PE.imgs[+sl]=u;var pv=document.getElementById('pv_'+sl);if(pv){pv.src=u;pv.style.display='block'}},'image/webp',.82)};im.onerror=function(){toast('Image open nahi hui')};im.src=r.result};r.readAsDataURL(f)}
-async function pdSave(){var $=function(i){return document.getElementById(i)},e=PE;e.n=$('pd_n').value.trim();e.cat=$('pd_c').value;e.p=+$('pd_p').value;e.desc=$('pd_d').value.trim();var r=$('pd_r').value;
- if(!e.n){toast('Product ka naam daalo');return}if(!(e.p>0)){toast('Valid price daalo');return}
- var any=e.imgs.filter(Boolean);if(!e.main&&!any.length&&!e.files){toast('Kam se kam 1 image upload karo');return}if(!e.main&&!any.length&&e.files&&e.files.main)e.main='pending';if(!e.main&&!any.length&&e.files&&e.files[0])e.imgs[0]='pending';
- if(r==='new'){var t=$('pd_t').value.trim(),sg=t.toLowerCase().replace(/[^a-z0-9]+/g,'');if(!sg){toast('New row ka naam daalo');return}r='r_'+sg;e.rowT=t;var ex=PR.filter(function(p){return p.cu&&p.row==r})[0];if(ex)e.rowT=ex.rowT}
- else if(/^r_/.test(r)){var ex2=PR.filter(function(p){return p.cu&&p.row==r})[0];e.rowT=ex2?ex2.rowT:e.rowT||''}else e.rowT='';e.row=r;
- if(!e.id){var m=99;PR.forEach(function(p){if(p.cu&&p.id>m)m=p.id});e.id=m+1}
- var btn=document.querySelector('.aac .buy');if(btn){btn.disabled=true;btn.textContent='Uploading images…'}
+function sbRest(path,opts){if(!sbReady())return Promise.reject(new Error('Supabase configuration missing.'));opts=opts||{};opts.headers=sbHeaders(Object.assign({'Content-Type':'application/json'},opts.headers||{}));return fetch(SB_URL.replace(/\/$/,'')+'/rest/v1/'+path,opts).then(function(r){if(!r.ok)return sbErr(r);if(r.status===204)return null;return r.text().then(function(t){return t?JSON.parse(t):null})})}
+function pdImg(inp,sl){
+ var f=inp.files&&inp.files[0];if(!f)return;
+ if(!/^image\/(jpeg|png|webp|gif|avif|heic|heif)$/i.test(f.type)){toast('JPG, PNG ya WebP image select karo');inp.value='';return}
+ if(f.size>12*1024*1024){toast('Image 12 MB se chhoti rakho');inp.value='';return}
+ var reader=new FileReader();reader.onerror=function(){toast('Image read nahi hui. Dobara select karo.')};reader.onload=function(){
+  var im=new Image();im.onerror=function(){toast('Image open nahi hui. JPG/PNG/WebP try karo.')};im.onload=function(){
+   var max=sl==='main'?1200:1200,scale=Math.min(1,max/Math.max(im.width,im.height)),canvas=document.createElement('canvas');
+   canvas.width=Math.max(1,Math.round(im.width*scale));canvas.height=Math.max(1,Math.round(im.height*scale));
+   var ctx=canvas.getContext('2d');if(!ctx){toast('Image editor unavailable');return}ctx.fillStyle='#fff';ctx.fillRect(0,0,canvas.width,canvas.height);ctx.drawImage(im,0,0,canvas.width,canvas.height);
+   canvas.toBlob(function(blob){if(!blob){toast('Image process nahi hui');return}PE.files=PE.files||{};PE.files[sl]=blob;var preview=URL.createObjectURL(blob);if(sl==='main')PE.main=preview;else PE.imgs[+sl]=preview;var pv=document.getElementById('pv_'+sl);if(pv){pv.src=preview;pv.style.display='block'}},'image/webp',.84)
+  };im.src=reader.result
+ };reader.readAsDataURL(f)
+}
+async function pdSave(){
+ var $=function(id){return document.getElementById(id)},e=PE;
+ e.n=$('pd_n').value.trim();e.cat=$('pd_c').value;e.p=+$('pd_p').value;e.desc=$('pd_d').value.trim();
+ var r=$('pd_r').value;
+ if(!e.n){toast('Product ka naam daalo');$('pd_n').focus();return}
+ if(!(e.p>0)){toast('Valid price daalo');$('pd_p').focus();return}
+ if(!sbReady()){toast('Supabase URL aur anon key pehle set karo');return}
+ if(r==='new'){
+  var t=$('pd_t').value.trim();if(!t){toast('New row ka naam daalo');$('pd_t').focus();return}
+  var sg=t.toLowerCase().replace(/[^a-z0-9]+/g,'').slice(0,30)||('row'+Date.now());r='r_'+sg;e.rowT=t;
+  var existing=PR.filter(function(p){return p.cu&&p.row===r})[0];if(existing)e.rowT=existing.rowT;
+ }else if(/^r_/.test(r)){var old=PR.filter(function(p){return p.cu&&p.row===r})[0];e.rowT=old?old.rowT:e.rowT||''}else e.rowT='';
+ e.row=r;
+ if(!e.id){var maxId=99;Object.keys(CPD).forEach(function(k){maxId=Math.max(maxId,+k||0)});e.id=maxId+1}
+ var btn=document.querySelector('#apd .aac .buy');if(btn){btn.disabled=true;btn.textContent='Saving product…'}
  try{
-  if(e.files){var keys=Object.keys(e.files);for(var i=0;i<keys.length;i++){var k=keys[i],url=await sbUpload(e.files[k],k);if(k==='main')e.main=url;else e.imgs[+k]=url}}
-  if(!e.main)e.main=e.imgs.filter(Boolean)[0];if(!e.main)throw new Error('Main product image missing');if(!e.imgs.some(Boolean))e.imgs=[e.main,'','',''];
-  delete e.files;CPD[e.id]=JSON.parse(JSON.stringify(e));cpSet(CPD);cfgSet(CFG);cpKeep();var v=String(Date.now());CPV=v;try{localStorage.setItem('vpv',v)}catch(x){}
-  await cput2('/products/'+e.id,CPD[e.id]);await cput2('/pver',v);toast('Product saved — images hosted on Supabase');PE={imgs:['','','']};adProducts();window.scrollTo(0,0)
- }catch(err){if(btn){btn.disabled=false;btn.textContent=e.id?'Update product':'Add product'}toast((err&&err.message)||'Upload failed. Internet/config check karo');console.error(err)}
+  var files=e.files||{},keys=Object.keys(files);
+  /* Upload selected images together to reduce waiting time. */
+  var uploaded=await Promise.all(keys.map(function(k){return sbUpload(files[k],k)}));
+  keys.forEach(function(k,i){if(k==='main')e.main=uploaded[i];else e.imgs[+k]=uploaded[i]});
+  if(!e.main)e.main=(e.imgs||[]).filter(Boolean)[0]||'';
+  if(!e.main)throw new Error('Main image required. At least one image select karo.');
+  if(!e.imgs||!e.imgs.some(Boolean))e.imgs=[e.main,'','',''];
+  while(e.imgs.length<4)e.imgs.push('');
+  delete e.files;
+  var record=JSON.parse(JSON.stringify(e));
+  /* Sync shared product record first; only then show success in this browser. */
+  await cput2('/products/'+e.id,record);
+  var version=String(Date.now());await cput2('/pver',version);
+  CPD[e.id]=record;cpSet(CPD);cpKeep();CPV=version;try{localStorage.setItem('vpv',version)}catch(ignore){}
+  cart=cart.filter(function(c){return PR[c.id]});save();
+  PE={imgs:['','','',''],files:{}};adProducts();window.scrollTo({top:0,behavior:'smooth'});
+  toast('Product successfully saved! Storefront refresh karke check karo.');
+ }catch(err){
+  if(btn){btn.disabled=false;btn.textContent=e.id?'Update product':'Add product'}
+  toast((err&&err.message)||'Save nahi hua. Internet / Supabase policies check karo.');console.error('Budani product save:',err)
+ }
 }
 function pdEdit(id){PE=JSON.parse(JSON.stringify(CPD[id]));while(PE.imgs.length<4)PE.imgs.push('');adProducts();window.scrollTo(0,0)}
 function pdDel(id){if(!confirm('Delete this product?'))return;delete CPD[id];cpSet(CPD);cpKeep();cart=cart.filter(function(c){return PR[c.id]});save();var v=String(Date.now());CPV=v;try{localStorage.setItem('vpv',v)}catch(x){}
