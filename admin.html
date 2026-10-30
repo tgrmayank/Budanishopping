@@ -20,7 +20,7 @@ input:not([type=checkbox]),select,textarea{width:100%;padding:10px;border:1.5px 
 .thumb{width:38px;height:38px;border-radius:8px;object-fit:cover;vertical-align:middle;margin-right:8px}
 .ov{position:fixed;inset:0;background:#0007;z-index:20;display:flex;align-items:flex-end;justify-content:center}.sheet{background:#fff;width:100%;max-width:560px;max-height:90vh;overflow:auto;border-radius:18px 18px 0 0;padding:16px}
 .sheet .rw{margin-top:14px}#ts{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#14172b;color:#fff;padding:10px 16px;border-radius:12px;z-index:50;display:none}
-.lg{max-width:360px;margin:12vh auto;padding:0 14px}ul{padding-left:18px;margin:6px 0}
+.bad{color:#b42318;display:block}.lg{max-width:360px;margin:12vh auto;padding:0 14px}ul{padding-left:18px;margin:6px 0}
 </style></head><body>
 <div id="app"></div><div id="md"></div><div id="ts"></div>
 <script>
@@ -61,11 +61,11 @@ if(ty=='c')return `<label class="ck"><input type="checkbox" id="f-${k}" ${v===fa
 if(ty=='a')x=`<textarea id="f-${k}" rows="3">${esc(v||'')}</textarea>`;
 else if(ty=='cat')x=`<select id="f-${k}">${CATS.map(c=>`<option value="${esc(c.k)}" ${c.k==v?'selected':''}>${esc(c.name)}</option>`).join('')}</select>`;
 else if(ty[0]=='s')x=`<select id="f-${k}">${ty.slice(2).split(',').map(o=>`<option ${o==v?'selected':''}>${o}</option>`).join('')}</select>`;
-else if(ty=='img')x=`<textarea id="f-${k}" rows="3">${esc((v||[]).join('\n'))}</textarea><input type="file" accept="image/*" multiple onchange="upl(this,'f-${k}',1)">`;
+else if(ty=='img')x=`<textarea id="f-${k}" rows="3" oninput="prev('f-${k}')">${esc((v||[]).join('\n'))}</textarea><input type="file" accept="image/*" multiple onchange="upl(this,'f-${k}',1)"><div id="pv-f-${k}"></div>`;
 else if(ty=='l')x=`<input id="f-${k}" value="${esc((v||[]).join(', '))}">`;
 else x=`<input id="f-${k}" type="${ty=='n'?'number':'text'}" step="any" value="${esc(v??'')}" ${i!=null&&k==PK[t]?'readonly':''}>`;
 return `<label>${l}</label>${x}`}).join('');
-$('#md').innerHTML=`<div class="ov"><div class="sheet"><h3>${i==null?'Add':'Edit'} ${t.slice(0,-1)=='categorie'?'category':t.replace(/s$/,'')}</h3>${h}<div class="rw"><button onclick="$('#md').innerHTML=''">Cancel</button><button class="b" style="margin:0" onclick="save()">Save</button></div></div></div>`}
+$('#md').innerHTML=`<div class="ov"><div class="sheet"><h3>${i==null?'Add':'Edit'} ${t.slice(0,-1)=='categorie'?'category':t.replace(/s$/,'')}</h3>${h}<div class="rw"><button onclick="$('#md').innerHTML=''">Cancel</button><button class="b" style="margin:0" onclick="save()">Save</button></div></div></div>`;prev('f-images')}
 async function save(){const {t,i}=EDIT,o={};
 for(const [k,l,ty] of F[t]){const e=$('#f-'+k);let v=ty=='c'?e.checked:e.value.trim();
 if(ty=='n')v=v===''?null:+v;if(ty=='l')v=v?v.split(',').map(x=>x.trim()).filter(Boolean):(k=='sizes'?null:[]);if(ty=='img')v=v?v.split('\n').map(x=>x.trim()).filter(Boolean):[];o[k]=v}
@@ -74,8 +74,14 @@ if(!o[F[t][0][0]]||(t=='products'&&o.price==null)){toast('Please fill the requir
 const {error}=i==null?await sb.from(t).insert(o):await sb.from(t).update(o).eq(PK[t],ROWS[t][i][PK[t]]);
 if(error){toast(error.message);return}$('#md').innerHTML='';toast('Saved');if(t=='categories')await loadCats();go(tab)}
 async function del(t,i){if(!confirm('Delete permanently?'))return;const {error}=await sb.from(t).delete().eq(PK[t],ROWS[t][i][PK[t]]);if(error){toast(error.message);return}toast('Deleted');if(t=='categories')await loadCats();go(tab)}
-async function upl(inp,id,multi){for(const f of inp.files){const p=Date.now()+'-'+f.name.replace(/[^\w.-]/g,'_');const {error}=await sb.storage.from('media').upload(p,f);if(error){toast(error.message);continue}
-const u=sb.storage.from('media').getPublicUrl(p).data.publicUrl,e=$('#'+id);e.value=multi&&e.value?e.value+'\n'+u:u}toast('Image uploaded')}
+async function upl(inp,id,multi){const e=$('#'+id);let n=0;for(const f of inp.files){
+const p=Date.now()+'-'+Math.random().toString(36).slice(2,7)+'-'+f.name.replace(/[^\w.-]/g,'_');
+const {error}=await sb.storage.from('media').upload(p,f,{contentType:f.type||'image/jpeg',upsert:true});
+if(error){toast('Upload failed: '+error.message);continue}
+const u=sb.storage.from('media').getPublicUrl(p).data.publicUrl;e.value=multi&&e.value.trim()?e.value.trim()+'\n'+u:u;n++}
+inp.value='';if(n)toast(n+' image(s) uploaded. Ab Save dabao');prev(id)}
+function badImg(i){const m=document.createElement('small');m.className='bad';m.textContent='⚠ Image load nahi ho rahi (Supabase bucket public hona chahiye)';i.replaceWith(m)}
+function prev(id){const el=$('#pv-'+id),e=$('#'+id);if(!el||!e)return;el.innerHTML=e.value.split('\n').map(x=>x.trim()).filter(Boolean).map(u=>`<img class="thumb" src="${esc(u)}" onerror="badImg(this)">`).join('')}
 
 /* ---------- views ---------- */
 const cnt=async t=>(await sb.from(t).select('*',{count:'exact',head:true})).count||0;
@@ -87,7 +93,7 @@ $('#m').innerHTML=ROWS.orders.map((o,n)=>`<div class="box"><div class="rw"><b>${
 products:crud('products'),categories:crud('categories'),coupons:crud('coupons'),
 settings:async()=>{const {data}=await sb.from('settings').select('value').eq('key','site').maybeSingle(),x=data?.value||{};
 const f=(k,l,ty='text')=>`<label>${l}</label><input id="s-${k}" type="${ty}" value="${esc(x[k]??'')}">`;
-$('#m').innerHTML=`<div class="box"><h3>Store Settings</h3>${f('name','Store name')}${f('short','Header short name')}${f('tagline','Tagline')}${f('phone','Phone (as displayed)')}${f('wa','WhatsApp number with country code (e.g. 918923538910)')}${f('free_ship','Free delivery above (₹)','number')}${f('ship','Delivery charge (₹)','number')}<label>Logo URL</label><input id="s-logo" value="${esc(x.logo||'')}"><input type="file" accept="image/*" onchange="upl(this,'s-logo')" style="margin-top:6px"><label>Scrolling ticker lines (one per line)</label><textarea id="s-ticker" rows="4">${esc((x.ticker||[]).join('\n'))}</textarea><label class="ck"><input type="checkbox" id="s-diwali" ${x.diwali===false?'':'checked'}> Show festival banner</label>${f('fest_title','Festival banner title')}${f('fest_sub','Festival banner subtitle')}<button class="b" onclick="saveS()">Save settings</button></div>`},
+$('#m').innerHTML=`<div class="box"><h3>Store Settings</h3>${f('name','Store name')}${f('short','Header short name')}${f('tagline','Tagline')}${f('phone','Phone (as displayed)')}${f('wa','WhatsApp number with country code (e.g. 918923538910)')}${f('free_ship','Free delivery above (₹)','number')}${f('ship','Delivery charge (₹)','number')}<label>Logo URL</label><input id="s-logo" value="${esc(x.logo||'')}"><input type="file" accept="image/*" onchange="upl(this,'s-logo')" style="margin-top:6px"><div id="pv-s-logo"></div><label>Scrolling ticker lines (one per line)</label><textarea id="s-ticker" rows="4">${esc((x.ticker||[]).join('\n'))}</textarea><label class="ck"><input type="checkbox" id="s-diwali" ${x.diwali===false?'':'checked'}> Show festival banner</label>${f('fest_title','Festival banner title')}${f('fest_sub','Festival banner subtitle')}<button class="b" onclick="saveS()">Save settings</button></div>`;prev('s-logo')},
 pages:async()=>{const {data}=await sb.from('settings').select('value').eq('key','pages').maybeSingle();PGS=data?.value||{};
 $('#m').innerHTML=`<div class="box"><h3>Website Pages</h3><p class="sm">Leave content empty to keep the built-in default text. HTML allowed. Note: custom Support/Contact content replaces the built-in buttons and form.</p><label>Page</label><select id="p-k" onchange="pfill()">${['about','privacy','terms','support','contact'].map(k=>`<option>${k}</option>`).join('')}</select><label>Title</label><input id="p-t"><label>Subtitle</label><input id="p-s"><label>Content (HTML)</label><textarea id="p-h" rows="12"></textarea><button class="b" onclick="saveP()">Save page</button></div>`;pfill()}};
 const ost=async(n,v)=>{const {error}=await sb.from('orders').update({status:v}).eq('id',ROWS.orders[n].id);toast(error?error.message:'Status updated')};
