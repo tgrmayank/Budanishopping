@@ -26,7 +26,6 @@ input:not([type=checkbox]),select,textarea{width:100%;padding:10px;border:1.5px 
 <script>
 const ADMIN_EMAIL='admin@budani.com'; /* Supabase > Authentication > Users me isi email se user banao */
 let SUPABASE_URL='https://tyyfcwrlpdalxwnvrtni.supabase.co',SUPABASE_KEY='sb_publishable_K6x1iXvP5YI4a_0UoKP1Dw_lW_HdIyz',sb;
-try{const c=JSON.parse(localStorage.getItem('bd_cfg')||'null');if(c){SUPABASE_URL=c.u;SUPABASE_KEY=c.k}}catch(e){}
 const $=s=>document.querySelector(s),esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const toast=m=>{const t=$('#ts');t.textContent=m;t.style.display='block';clearTimeout(t._t);t._t=setTimeout(()=>t.style.display='none',2500)};
 const ST=['placed','confirmed','packed','shipped','out_for_delivery','delivered','cancelled'];
@@ -40,13 +39,11 @@ let tab='dash',CATS=[],ROWS={},EDIT={},PGS={};
 const loadCats=async()=>CATS=(await sb.from('categories').select('*').order('sort')).data||[];
 
 /* ---------- auth ---------- */
-function setup(){$('#app').innerHTML=`<div class="lg box"><h2 style="color:var(--n)">Connect Supabase</h2><p class="sm">Supabase > Project Settings > API se Project URL aur anon public key copy karo.</p><label>Project URL</label><input id="cu" placeholder="https://xxxx.supabase.co"><label>Anon public key</label><textarea id="ck" rows="3"></textarea><button class="b" style="width:100%" onclick="saveCfg()">Save &amp; Continue</button></div>`}
-function saveCfg(){const u=$('#cu').value.trim(),k=$('#ck').value.trim();if(!/^https:\/\/.+/.test(u)||k.length<20){toast('Valid URL aur key daalo');return}localStorage.setItem('bd_cfg',JSON.stringify({u,k}));SUPABASE_URL=u;SUPABASE_KEY=k;boot()}
-function login(){$('#app').innerHTML=`<div class="lg box"><h2 style="color:var(--n)">Admin Login</h2>${ADMIN_EMAIL?'':'<label>Email</label><input id="em" type="email">'}<label>Password</label><input id="pw" type="password" autofocus onkeydown="if(event.key=='Enter')doLogin()"><button class="b" style="width:100%" onclick="doLogin()">Login</button><p class="sm" style="margin-top:12px"><a href="#" onclick="localStorage.removeItem('bd_cfg');location.reload();return false">Change Supabase keys</a></p></div>`}
+function login(){$('#app').innerHTML=`<div class="lg box"><h2 style="color:var(--n)">Admin Login</h2>${ADMIN_EMAIL?'':'<label>Email</label><input id="em" type="email">'}<label>Password</label><input id="pw" type="password" autofocus onkeydown="if(event.key=='Enter')doLogin()"><button class="b" style="width:100%" onclick="doLogin()">Login</button></div>`}
 async function doLogin(){const {error}=await sb.auth.signInWithPassword({email:ADMIN_EMAIL||$('#em').value.trim(),password:$('#pw').value});if(error){toast(error.message=='Invalid login credentials'?'Wrong password':error.message);return}await boot()}
 async function out(){await sb.auth.signOut();login()}
 async function boot(){if(typeof supabase==='undefined'){$('#app').innerHTML='<div class="lg box"><h3>Supabase library load nahi hui</h3><p class="sm">Internet check karo ya ad-blocker band karke page refresh karo.</p></div>';return}
-if(!sb){if(!/^https?:\/\//.test(SUPABASE_URL)||SUPABASE_KEY.startsWith('YOUR_')){setup();return}try{sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY)}catch(e){setup();return}}
+if(!sb){try{sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY)}catch(e){$('#app').innerHTML='<div class="lg box"><h3>Setup incomplete</h3><p class="sm">Supabase URL / key are not set correctly in this file.</p></div>';return}}
 const {data:{session}}=await sb.auth.getSession();if(!session){login();return}
 const {data:ok}=await sb.rpc('is_admin');if(!ok){toast('This account is not an admin');await sb.auth.signOut();login();return}shell()}
 
