@@ -104,6 +104,7 @@ html,body{overflow-x:clip;max-width:100%}html{-webkit-text-size-adjust:100%}
 @keyframes fl{from{transform:scale(1,1) rotate(-3deg)}to{transform:scale(.9,1.12) rotate(3deg)}}
 @media(max-width:400px){.dt b{font-size:18px}.dy{width:26px}.dr{gap:6px}}
 @media(prefers-reduced-motion:reduce){.bu,.dy i,.sp,.dt b{animation:none}}
+.dsg{display:flex;gap:10px;overflow-x:auto;padding-bottom:6px}.dz{flex:0 0 96px;background:#fff;border:2px solid #d9ddec;border-radius:12px;padding:6px;text-align:center;font-size:12px}.dz.on{border-color:var(--n);box-shadow:0 2px 10px #0b1f5c22}.dz img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:8px;display:block}.dz span{display:block;margin-top:4px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.dz b{color:var(--n);font-size:13px}
 </style></head><body>
 <header class="top"><button class="ib" onclick="drw(1)"><svg class="i" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button><a class="br" href="#home"><img class="lg" alt=""><span id="bns">BUDANI</span></a><a class="ib" href="#cart"><svg class="i" viewBox="0 0 24 24"><path d="M6 6h15l-2 9H8zM6 6L5 3H2M9 20h.01M18 20h.01"/></svg><span class="badge" id="cn" style="display:none"></span></a></header>
 <div id="sd"><div class="ov" onclick="drw(0)"></div><nav onclick="drw(0)"><img class="lg" alt=""><a href="#home">Home</a></nav></div>
@@ -144,6 +145,12 @@ async function loadS(){if(sb){try{const [a,b]=await Promise.all([sb.from('settin
 Object.entries(S.pages||{}).forEach(([k,v])=>{if(PG[k]&&v?.html)PG[k]=[v.title||PG[k][0],v.html,v.sub??PG[k][2]]})}catch(e){console.error(e)}}applySite()}
 async function loadP(){await loadS();if(sb){const {data,error}=await sb.from('products').select('*').eq('active',true).order('created_at',{ascending:false});if(!error&&data){P=data;return}}P=demoP();demo=true}
 const imgs=p=>p.images?.length?p.images:(p.image_url?[p.image_url]:[ph('No Image','#999')]);
+const vars=p=>Array.isArray(p.variants)?p.variants.filter(v=>v&&v.name):[];
+const vOf=(p,n)=>vars(p).find(v=>v.name==n);
+const vImgs=(p,n)=>{const a=(vOf(p,n)?.images||[]).filter(Boolean);return a.length?a:imgs(p)};
+const vPrice=(p,n)=>{const v=vOf(p,n);return v&&v.price!=null&&v.price!==''?+v.price:p.price};
+const vMrp=(p,n)=>{const v=vOf(p,n);return v?(+v.mrp||0):(+p.mrp||0)};
+function selV(i){const p=P.find(x=>String(x.id)==String(sel.pid));sel.vn=vars(p)[i].name;sel.img=0;render()}
 const sizesOf=p=>p.sizes?.length?p.sizes:p.category=='shoe'?['6','7','8','9','10']:['S','M','L','XL','XXL'];
 const catN=k=>CATS.find(c=>c.k==k)?.n||k;
 const toast=m=>{let t=$('#ts');if(!t){t=document.createElement('div');t.id='ts';document.body.appendChild(t)}t.textContent=m;t.className='on';clearTimeout(t._t);t._t=setTimeout(()=>t.className='',2200)};
@@ -185,23 +192,25 @@ t.addEventListener('scroll',()=>{const h=hf();if(!h)return;if(t.scrollLeft>=2*h)
 let lt=0;function frame(ts){const dt=Math.min(ts-lt,50)||16;lt=ts;document.querySelectorAll('.track').forEach(t=>{if(!t._hf)return;const h=t._hf();if(!h)return;if(t._t||dT===t){t._x=t._l=t.scrollLeft;return}if(Math.abs(t.scrollLeft-t._l)>1.5)t._x=t.scrollLeft;t._x+=dt*.08*(+t.dataset.d||1);if(t._x>=2*h)t._x-=h;else if(t._x<=h*.25)t._x+=h;t.scrollLeft=t._x;t._l=t.scrollLeft});requestAnimationFrame(frame)}requestAnimationFrame(frame);
 function openF(){sheet(`<h3>Filters</h3><p class="lb">Category</p><div class="chips">${[{k:'',n:'All'},...CATS].map(c=>`<button class="chip ${Q.cat==c.k?'on':''}" onclick="Q.cat='${c.k}';openF()">${c.n}</button>`).join('')}</div><p class="lb">Sort by price</p><div class="chips">${[['','Default'],['lh','Low to High'],['hl','High to Low']].map(s=>`<button class="chip ${Q.sort==s[0]?'on':''}" onclick="Q.sort='${s[0]}';openF()">${s[1]}</button>`).join('')}</div><p class="lb">Max price</p><input class="in" id="mx" type="number" placeholder="e.g. 1500" value="${Q.max}"><button class="btn" onclick="Q.max=$('#mx').value;closeS()">Apply</button>`)}
 /* ---------- product ---------- */
-function prod(id){const p=P.find(x=>String(x.id)==id);if(!p)return '<p class="em">Product not found</p>';const im=imgs(p),sz=sizesOf(p),co=p.colors||[];
-if(sel.pid!=id)sel={pid:id,size:'',color:co[0]||'',img:0};
+function prod(id){const p=P.find(x=>String(x.id)==id);if(!p)return '<p class="em">Product not found</p>';const V=vars(p),sz=sizesOf(p),co=V.length?[]:(p.colors||[]);
+if(sel.pid!=id)sel={pid:id,size:'',color:co[0]||'',vn:V[0]?.name||'',img:0};
+const im=vImgs(p,sel.vn),pr=vPrice(p,sel.vn),mrp=vMrp(p,sel.vn);if(sel.img>=im.length)sel.img=0;
 return `<div class="w pg"><button class="bk" onclick="back()">${ic('back')} Back</button><div class="pd"><div><img class="mi" src="${esc(im[sel.img])}" alt="">${im.length>1?`<div class="th">${im.map((s,i)=>`<img src="${esc(s)}" class="${i==sel.img?'on':''}" onclick="sel.img=${i};render()">`).join('')}</div>`:''}</div>
-<div><h2>${esc(p.name)}</h2><div class="pr big">${R(p.price)}${p.mrp>p.price?`<s>${R(p.mrp)}</s>`:''}</div><p class="ds">${esc(p.description||'')}</p>
+<div><h2>${esc(p.name)}</h2><div class="pr big">${R(pr)}${mrp>pr?`<s>${R(mrp)}</s>`:''}</div><p class="ds">${esc(p.description||'')}</p>
 <p class="lb">Select Size</p><div class="chips">${sz.map(s=>`<button class="chip ${sel.size==s?'on':''}" onclick="sel.size='${esc(s)}';render()">${esc(s)}</button>`).join('')}</div>
+${V.length?`<p class="lb">Select Design: <b>${esc(sel.vn)}</b></p><div class="dsg">${V.map((v,i)=>`<button class="dz ${sel.vn==v.name?'on':''}" onclick="selV(${i})"><img src="${esc((v.images||[]).filter(Boolean)[0]||imgs(p)[0])}" alt=""><span>${esc(v.name)}</span><b>${R(vPrice(p,v.name))}</b></button>`).join('')}</div>`:''}
 ${co.length?`<p class="lb">Color: <b>${esc(sel.color)}</b></p><div class="chips">${co.map(c=>`<button class="sw ${sel.color==c?'on':''}" title="${esc(c)}" style="background:${esc(c)}" onclick="sel.color='${esc(c)}';render()"></button>`).join('')}</div>`:''}
 <button class="btn" onclick="add('${p.id}')">Add to Cart</button></div></div></div>`}
-function add(id){if(!sel.size){toast('Please select a size first');return}const k=cart.find(i=>i.id==id&&i.size==sel.size&&i.color==sel.color);k?k.qty++:cart.push({id,size:sel.size,color:sel.color,qty:1});sv();toast('Added to cart')}
+function add(id){if(!sel.size){toast('Please select a size first');return}const k=cart.find(i=>i.id==id&&i.size==sel.size&&i.color==sel.color&&(i.vn||'')==(sel.vn||''));k?k.qty++:cart.push({id,size:sel.size,color:sel.color,vn:sel.vn||'',qty:1});sv();toast('Added to cart')}
 /* ---------- cart ---------- */
 const sv=()=>{ls.s('bd_cart',cart);bar()};
 function bar(){let b=$('#cb');const n=cart.reduce((a,i)=>a+i.qty,0),v=route.split('/')[0],c=$('#cn');c.style.display=n?'':'none';c.textContent=n;
 if(!n||['cart','checkout','done'].includes(v)){b?.remove();return}if(!b){b=document.createElement('div');b.id='cb';document.body.appendChild(b)}b.onclick=()=>go('cart');b.innerHTML=`<span>${n} item${n>1?'s':''} in cart</span><b>View Cart ${ic('next')}</b>`}
-function tot(){const L=cart.map((i,x)=>({...i,x,p:P.find(y=>String(y.id)==String(i.id))})).filter(l=>l.p),sub=L.reduce((a,l)=>a+l.p.price*l.qty,0);let d=0;if(coupon&&sub>=(coupon.min_order||0))d=coupon.type=='flat'?+coupon.value:Math.round(sub*coupon.value/100);d=Math.min(d,sub);const ship=!sub||sub>=CFG.FREE_SHIP?0:CFG.SHIP;return{L,sub,d,ship,total:sub-d+ship}}
+function tot(){const L=cart.map((i,x)=>({...i,x,p:P.find(y=>String(y.id)==String(i.id))})).filter(l=>l.p).map(l=>({...l,pr:vPrice(l.p,l.vn),im:vImgs(l.p,l.vn)[0]})),sub=L.reduce((a,l)=>a+l.pr*l.qty,0);let d=0;if(coupon&&sub>=(coupon.min_order||0))d=coupon.type=='flat'?+coupon.value:Math.round(sub*coupon.value/100);d=Math.min(d,sub);const ship=!sub||sub>=CFG.FREE_SHIP?0:CFG.SHIP;return{L,sub,d,ship,total:sub-d+ship}}
 const bill=t=>`<div class="box"><h3>Bill Details</h3><div class="rw"><span>Items total</span><span>${R(t.sub)}</span></div>${t.d?`<div class="rw ok"><span>Coupon discount</span><span>− ${R(t.d)}</span></div>`:''}<div class="rw"><span>Delivery</span><span>${t.ship?R(t.ship):'FREE'}</span></div><div class="rw tt"><span>Total</span><span>${R(t.total)}</span></div></div>`;
 function qty(x,d){cart[x].qty+=d;if(cart[x].qty<1)cart.splice(x,1);sv();render()}
 function cartV(){const t=tot();if(!t.L.length)return `<div class="w pg"><p class="em">Your cart is empty</p><a class="btn" href="#home">Start Shopping</a></div>`;
-return `<div class="w pg"><h2 class="pt">My Cart</h2>${t.L.map(l=>`<div class="ci"><img src="${esc(imgs(l.p)[0])}" alt=""><div class="cf"><b>${esc(l.p.name)}</b><small>Size ${esc(l.size)}${l.color?' • '+esc(l.color):''}</small><div class="pr">${R(l.p.price)}</div><div class="q"><button onclick="qty(${l.x},-1)">−</button><span>${l.qty}</span><button onclick="qty(${l.x},1)">+</button></div></div><button class="rm" onclick="qty(${l.x},-9999)">${ic('x')}</button></div>`).join('')}
+return `<div class="w pg"><h2 class="pt">My Cart</h2>${t.L.map(l=>`<div class="ci"><img src="${esc(l.im)}" alt=""><div class="cf"><b>${esc(l.p.name)}</b><small>${l.vn?esc(l.vn)+' • ':''}Size ${esc(l.size)}${l.color?' • '+esc(l.color):''}</small><div class="pr">${R(l.pr)}</div><div class="q"><button onclick="qty(${l.x},-1)">−</button><span>${l.qty}</span><button onclick="qty(${l.x},1)">+</button></div></div><button class="rm" onclick="qty(${l.x},-9999)">${ic('x')}</button></div>`).join('')}
 <div class="box"><h3>Coupon Code</h3><div class="cp"><input class="in" id="cc" placeholder="Enter code" value="${esc(coupon?.code||'')}"><button class="btn s" onclick="applyC()">Apply</button></div>${coupon?`<small class="ok">${esc(coupon.code)} applied</small>`:''}</div>${bill(t)}<button class="btn" onclick="go('checkout')">Proceed to Checkout</button></div>`}
 async function applyC(){const c=$('#cc').value.trim().toUpperCase();if(!c){coupon=null;render();return}let r=null;
 if(sb){const {data}=await sb.rpc('get_coupon',{p_code:c});r=data?.[0]}else r={BUDANI10:{code:'BUDANI10',type:'percent',value:10,min_order:0},FLAT100:{code:'FLAT100',type:'flat',value:100,min_order:999}}[c];
@@ -214,7 +223,7 @@ async function place(){const g=id=>$('#'+id).value.trim(),a={nm:g('nm'),ph:g('ph
 if(!a.nm||a.ph.replace(/\D/g,'').length<10||!a.ad||!a.ct||!a.st||a.pn.length<6){toast('Please fill in your complete address correctly');return}
 ls.s('bd_addr',a);$('#po').disabled=true;const t=tot();
 const o={order_id:'BD'+Date.now().toString(36).toUpperCase().slice(-6)+Math.floor(Math.random()*90+10),customer_name:a.nm,phone:a.ph,address:`${a.ad}, ${a.ct}, ${a.st} - ${a.pn}${a.lm?' (Near '+a.lm+')':''}`,
-items:t.L.map(l=>({id:l.p.id,name:l.p.name,price:l.p.price,qty:l.qty,size:l.size,color:l.color,image:String(imgs(l.p)[0]).startsWith('data')?'':imgs(l.p)[0]})),subtotal:t.sub,discount:t.d,delivery:t.ship,total:t.total,coupon:coupon?.code||null,payment_method:pay,status:'placed'};
+items:t.L.map(l=>({id:l.p.id,name:l.p.name+(l.vn?' – '+l.vn:''),price:l.pr,qty:l.qty,size:l.size,color:l.color,image:String(l.im).startsWith('data')?'':l.im})),subtotal:t.sub,discount:t.d,delivery:t.ship,total:t.total,coupon:coupon?.code||null,payment_method:pay,status:'placed'};
 if(sb){const {error}=await sb.from('orders').insert(o);if(error)toast('Order could not be saved to the server; it will be confirmed via WhatsApp')}
 o.created_at=new Date().toISOString();const h=ls.g('bd_orders',[]);h.unshift(o);ls.s('bd_orders',h.slice(0,50));cart=[];coupon=null;sv();stack=[];route='home';go('done/'+o.order_id)}
 function wa(o){if(!o)return;const m=`*New Order - BUDANI SHOPPING*\nOrder ID: ${o.order_id}\n\nName: ${o.customer_name}\nPhone: ${o.phone}\nAddress: ${o.address}\n\n*Products*\n${o.items.map((i,n)=>`${n+1}. ${i.name} | Size ${i.size}${i.color?' | '+i.color:''} | Qty ${i.qty} | ${R(i.price*i.qty)}`).join('\n')}\n\nSubtotal: ${R(o.subtotal)}\nDiscount: ${R(o.discount)}${o.coupon?' ('+o.coupon+')':''}\nDelivery: ${o.delivery?R(o.delivery):'FREE'}\n*Total: ${R(o.total)}*\nPayment: ${PAYN[o.payment_method]}`;location.href=`https://wa.me/${CFG.WA}?text=${encodeURIComponent(m)}`}

@@ -20,7 +20,7 @@ input:not([type=checkbox]),select,textarea{width:100%;padding:10px;border:1.5px 
 .thumb{width:38px;height:38px;border-radius:8px;object-fit:cover;vertical-align:middle;margin-right:8px}
 .ov{position:fixed;inset:0;background:#0007;z-index:20;display:flex;align-items:flex-end;justify-content:center}.sheet{background:#fff;width:100%;max-width:560px;max-height:90vh;overflow:auto;border-radius:18px 18px 0 0;padding:16px}
 .sheet .rw{margin-top:14px}#ts{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#14172b;color:#fff;padding:10px 16px;border-radius:12px;z-index:50;display:none}
-.bad{color:#b42318;display:block}.slots{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}.slot{position:relative;aspect-ratio:1;border:2px dashed #cfd5ea;border-radius:12px;overflow:hidden;background:#f6f7fb;display:grid;place-items:center}.slot img{width:100%;height:100%;object-fit:cover}.slot label{margin:0;width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:28px;color:var(--n);cursor:pointer}.slot .x{position:absolute;top:6px;right:6px;padding:4px 9px;border-radius:50%;background:#fffd;color:#b42318}.lg{max-width:360px;margin:12vh auto;padding:0 14px}ul{padding-left:18px;margin:6px 0}
+.bad{color:#b42318;display:block}.slots.s4{grid-template-columns:repeat(4,1fr);gap:6px;margin-top:8px}.s4 .slot label{font-size:20px}.s4 .slot small{font-size:10px}.vc{border:1.5px solid #d9ddec;border-radius:14px;padding:10px;margin-bottom:10px}.vc input:not([type=file]){margin-top:8px}.two2{display:grid;grid-template-columns:1fr 1fr;gap:8px}.chipz{display:flex;flex-wrap:wrap;gap:6px}.cz{background:#fff;border:1.5px solid #d9ddec}.cz.on{background:var(--n);color:#fff;border-color:var(--n)}.slots{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}.slot{position:relative;aspect-ratio:1;border:2px dashed #cfd5ea;border-radius:12px;overflow:hidden;background:#f6f7fb;display:grid;place-items:center}.slot img{width:100%;height:100%;object-fit:cover}.slot label{margin:0;width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:28px;color:var(--n);cursor:pointer}.slot .x{position:absolute;top:6px;right:6px;padding:4px 9px;border-radius:50%;background:#fffd;color:#b42318}.lg{max-width:360px;margin:12vh auto;padding:0 14px}ul{padding-left:18px;margin:6px 0}
 </style></head><body>
 <div id="app"></div><div id="md"></div><div id="ts"></div>
 <script>
@@ -30,11 +30,11 @@ const $=s=>document.querySelector(s),esc=s=>String(s??'').replace(/[&<>"']/g,c=>
 const toast=m=>{const t=$('#ts');t.textContent=m;t.style.display='block';clearTimeout(t._t);t._t=setTimeout(()=>t.style.display='none',2500)};
 const ST=['placed','confirmed','packed','shipped','out_for_delivery','delivered','cancelled'];
 const F={
-products:[['name','Product name','t'],['category','Category','cat'],['price','Price (₹)','n'],['mrp','MRP / cut price (₹)','n'],['description','Description','a'],['images','Product images (4 photos)','img'],['colors','Colors (comma separated)','l'],['sizes','Sizes (comma separated; blank = default sizes)','l'],['active','Visible on website','c']],
+products:[['name','Product name','t'],['category','Category','cat'],['price','Default price (₹) – used if no design is added','n'],['mrp','Default MRP (₹, optional)','n'],['description','Description','a'],['images','Default photos (used only if no design is added)','img'],['sizes','Available sizes (tap to select)','sz'],['variants','Designs / Colors – each with its own photos & price','var'],['active','Visible on website','c']],
 categories:[['k','Key (e.g. tshirt)','t'],['name','Display name','t'],['sort','Sort order','n'],['active','Active','c']],
 coupons:[['code','Coupon code','t'],['type','Type','s:percent,flat'],['value','Value (% or ₹)','n'],['min_order','Minimum order (₹)','n'],['active','Active','c']]};
 const PK={products:'id',categories:'k',coupons:'code',orders:'id'};
-const SUM={products:r=>`${r.images?.[0]?`<img class="thumb" src="${esc(r.images[0])}">`:''}${esc(r.name)} <small>${esc(r.category||'-')} • ₹${r.price}${r.mrp?' (MRP ₹'+r.mrp+')':''}</small>`,categories:r=>`${esc(r.name)} <small>key: ${esc(r.k)} • order ${r.sort}</small>`,coupons:r=>`<b>${esc(r.code)}</b> <small>${r.type=='flat'?'₹'+r.value:r.value+'%'} off • min ₹${r.min_order}</small>`};
+const SUM={products:r=>`${r.images?.[0]?`<img class="thumb" src="${esc(r.images[0])}">`:''}${esc(r.name)} <small>${esc(r.category||'-')} • ₹${r.price}${(r.variants||[]).length?' • '+r.variants.length+' designs':''}${r.mrp?' (MRP ₹'+r.mrp+')':''}</small>`,categories:r=>`${esc(r.name)} <small>key: ${esc(r.k)} • order ${r.sort}</small>`,coupons:r=>`<b>${esc(r.code)}</b> <small>${r.type=='flat'?'₹'+r.value:r.value+'%'} off • min ₹${r.min_order}</small>`};
 let tab='dash',CATS=[],ROWS={},EDIT={},PGS={};
 const loadCats=async()=>CATS=(await sb.from('categories').select('*').order('sort')).data||[];
 
@@ -55,21 +55,26 @@ async function go(t){tab=t;document.querySelectorAll('nav button').forEach(b=>b.
 /* ---------- generic CRUD ---------- */
 const crud=t=>async()=>{const {data,error}=await sb.from(t).select('*').order(t=='products'?'created_at':t=='categories'?'sort':'code',{ascending:t!='products'});if(error)throw error;ROWS[t]=data||[];
 $('#m').innerHTML=`<button class="b" style="margin:0 0 10px" onclick="edit('${t}')">+ Add new</button>`+(ROWS[t].map((r,i)=>`<div class="box rw"><span class="${r.active===false?'off':''}">${SUM[t](r)}</span><span><button onclick="edit('${t}',${i})">Edit</button><button class="d" onclick="del('${t}',${i})">Delete</button></span></div>`).join('')||'<p class="em">Nothing here yet</p>')};
-function edit(t,i){const r=i==null?{active:true,type:'percent',min_order:0,sort:CATS.length+1,category:CATS[0]?.k}:ROWS[t][i];EDIT={t,i};IMG=[...(r.images||[])];while(IMG.length<4)IMG.push('');
+function edit(t,i){const r=i==null?{active:true,type:'percent',min_order:0,sort:CATS.length+1,category:CATS[0]?.k}:ROWS[t][i];EDIT={t,i};IMG=[...(r.images||[])];while(IMG.length<4)IMG.push('');VAR=(r.variants||[]).map(v=>({name:v.name||'',price:v.price??'',mrp:v.mrp??'',images:[...(v.images||[]),'','','',''].slice(0,4)}));SZ=[...(r.sizes||[])];
 const h=F[t].map(([k,l,ty])=>{const v=r[k];let x;
 if(ty=='c')return `<label class="ck"><input type="checkbox" id="f-${k}" ${v===false?'':'checked'}> ${l}</label>`;
 if(ty=='a')x=`<textarea id="f-${k}" rows="3">${esc(v||'')}</textarea>`;
 else if(ty=='cat')x=`<select id="f-${k}">${CATS.map(c=>`<option value="${esc(c.k)}" ${c.k==v?'selected':''}>${esc(c.name)}</option>`).join('')}</select>`;
 else if(ty[0]=='s')x=`<select id="f-${k}">${ty.slice(2).split(',').map(o=>`<option ${o==v?'selected':''}>${o}</option>`).join('')}</select>`;
+else if(ty=='sz')x=`<div id="szbox"></div>`;
+else if(ty=='var')x=`<div id="vbox"></div><button type="button" class="b" style="margin:4px 0 0;width:100%" onclick="addVar()">+ Add design / color</button>`;
 else if(ty=='img')x=`<div id="slots" class="slots"></div><small class="sm">Max 4 photos (1st = main image). Photos auto-resize ho jati hain. Upload ke baad Save zaroor dabao.</small>`;
 else if(ty=='l')x=`<input id="f-${k}" value="${esc((v||[]).join(', '))}">`;
 else x=`<input id="f-${k}" type="${ty=='n'?'number':'text'}" step="any" value="${esc(v??'')}" ${i!=null&&k==PK[t]?'readonly':''}>`;
 return `<label>${l}</label>${x}`}).join('');
-$('#md').innerHTML=`<div class="ov"><div class="sheet"><h3>${i==null?'Add':'Edit'} ${t.slice(0,-1)=='categorie'?'category':t.replace(/s$/,'')}</h3>${h}<div class="rw"><button onclick="$('#md').innerHTML=''">Cancel</button><button class="b" style="margin:0" onclick="save()">Save</button></div></div></div>`;drawSlots()}
+$('#md').innerHTML=`<div class="ov"><div class="sheet"><h3>${i==null?'Add':'Edit'} ${t.slice(0,-1)=='categorie'?'category':t.replace(/s$/,'')}</h3>${h}<div class="rw"><button onclick="$('#md').innerHTML=''">Cancel</button><button class="b" style="margin:0" onclick="save()">Save</button></div></div></div>`;drawSlots();drawSz();drawVars()}
 async function save(){const {t,i}=EDIT,o={};
-for(const [k,l,ty] of F[t]){if(ty=='img'){o[k]=IMG.map(x=>x.trim()).filter(Boolean);continue}const e=$('#f-'+k);let v=ty=='c'?e.checked:e.value.trim();
+for(const [k,l,ty] of F[t]){if(ty=='img'){o[k]=IMG.map(x=>x.trim()).filter(Boolean);continue}
+if(ty=='sz'){o[k]=SZ.length?[...SZP.filter(x=>SZ.includes(x)),...SZ.filter(x=>!SZP.includes(x))]:null;continue}
+if(ty=='var'){o[k]=VAR.filter(v=>String(v.name).trim()).map(v=>({name:String(v.name).trim(),price:v.price===''||v.price==null?null:+v.price,mrp:v.mrp===''||v.mrp==null?null:+v.mrp,images:v.images.filter(Boolean)}));continue}const e=$('#f-'+k);let v=ty=='c'?e.checked:e.value.trim();
 if(ty=='n')v=v===''?null:+v;if(ty=='l')v=v?v.split(',').map(x=>x.trim()).filter(Boolean):(k=='sizes'?null:[]);if(ty=='img')v=v?v.split('\n').map(x=>x.trim()).filter(Boolean):[];o[k]=v}
 if(t=='categories')o.k=o.k.toLowerCase().replace(/[^a-z0-9_-]/g,'');if(t=='coupons')o.code=o.code.toUpperCase();
+if(t=='products'&&o.variants.length){if(o.variants.some(v=>v.price==null)){toast('Har design ka price daalo');return}const f=o.variants[0];o.price=f.price;o.mrp=f.mrp;if(f.images.length)o.images=f.images}
 if(!o[F[t][0][0]]||(t=='products'&&o.price==null)){toast('Please fill the required fields');return}
 const {error}=i==null?await sb.from(t).insert(o):await sb.from(t).update(o).eq(PK[t],ROWS[t][i][PK[t]]);
 if(error){toast(error.message);return}$('#md').innerHTML='';toast('Saved');if(t=='categories')await loadCats();go(tab)}
@@ -80,7 +85,20 @@ const {error}=await sb.storage.from('media').upload(p,f,{contentType:f.type||'im
 if(error){toast('Upload failed: '+error.message);continue}
 const u=sb.storage.from('media').getPublicUrl(p).data.publicUrl;e.value=multi&&e.value.trim()?e.value.trim()+'\n'+u:u;n++}
 inp.value='';if(n)toast(n+' image(s) uploaded. Ab Save dabao');prev(id)}
-let IMG=[];
+let IMG=[],SZ=[],VAR=[];const SZP=['S','M','L','XL','XXL','3XL','5','6','7','8','9','10','11','12','Free Size'];
+function drawSz(){const el=$('#szbox');if(!el)return;const all=[...new Set([...SZP,...SZ])];
+el.innerHTML=`<div class="chipz">${all.map(x=>`<button type="button" class="cz ${SZ.includes(x)?'on':''}" data-s="${esc(x)}" onclick="togSz(this.dataset.s)">${esc(x)}</button>`).join('')}</div><div class="rw" style="margin-top:8px;flex-wrap:nowrap"><input id="szc" placeholder="Custom size (e.g. 28, 30)"><button type="button" onclick="addSz()">Add</button></div><small class="sm">Selected: ${SZ.length?esc(SZ.join(', ')):'none (website default sizes will show)'}</small>`}
+function togSz(x){SZ=SZ.includes(x)?SZ.filter(y=>y!=x):[...SZ,x];drawSz()}
+function addSz(){$('#szc').value.split(',').map(x=>x.trim()).filter(Boolean).forEach(x=>{if(!SZ.includes(x))SZ.push(x)});drawSz()}
+function addVar(){VAR.push({name:'',price:'',mrp:'',images:['','','','']});drawVars()}
+function delVar(i){if(confirm('Remove this design?')){VAR.splice(i,1);drawVars()}}
+function vClr(i,n){VAR[i].images[n]='';drawVars()}
+async function upImg(f){toast('Uploading...');const b=await shrink(f),p=Date.now()+'-'+Math.random().toString(36).slice(2,7)+'.jpg';
+const {error}=await sb.storage.from('media').upload(p,b,{contentType:b.type||'image/jpeg',upsert:true});if(error){toast('Upload failed: '+error.message);return null}
+return sb.storage.from('media').getPublicUrl(p).data.publicUrl}
+async function vUp(inp,i,n){const f=inp.files[0];if(!f)return;const u=await upImg(f);if(u){VAR[i].images[n]=u;drawVars();toast('Uploaded. Ab Save dabao')}}
+function drawVars(){const el=$('#vbox');if(!el)return;
+el.innerHTML=VAR.map((v,i)=>`<div class="vc"><div class="rw"><b>Design ${i+1}</b><button type="button" class="d" onclick="delVar(${i})">Remove</button></div><input placeholder="Design / color name (e.g. Black, Red Graphic)" value="${esc(v.name)}" oninput="VAR[${i}].name=this.value"><div class="two2"><input type="number" step="any" placeholder="Price ₹" value="${esc(v.price)}" oninput="VAR[${i}].price=this.value"><input type="number" step="any" placeholder="MRP ₹ (optional)" value="${esc(v.mrp)}" oninput="VAR[${i}].mrp=this.value"></div><div class="slots s4">${v.images.map((u,n)=>`<div class="slot">${u?`<img src="${esc(u)}"><button type="button" class="x" onclick="vClr(${i},${n})">✕</button>`:`<label>＋<small>Photo ${n+1}</small><input type="file" accept="image/*" hidden onchange="vUp(this,${i},${n})"></label>`}</div>`).join('')}</div></div>`).join('')||'<p class="sm">No design yet. Add one so each design gets its own photos and price.</p>'}
 function drawSlots(){const el=$('#slots');if(!el)return;el.innerHTML=IMG.map((u,n)=>`<div class="slot">${u?`<img src="${esc(u)}" onerror="this.outerHTML='<small class=bad>⚠ not loading</small>'"><button class="x" onclick="slotClr(${n})">✕</button>`:`<label>＋<small>${n==0?'Main image':'Image '+(n+1)}</small><input type="file" accept="image/*" hidden onchange="slotUp(this,${n})"></label>`}</div>`).join('')}
 function slotClr(n){IMG[n]='';drawSlots()}
 async function shrink(f){try{const b=await createImageBitmap(f),r=Math.min(1,1200/Math.max(b.width,b.height)),c=document.createElement('canvas');c.width=Math.round(b.width*r);c.height=Math.round(b.height*r);const x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,c.width,c.height);x.drawImage(b,0,0,c.width,c.height);return await new Promise(ok=>c.toBlob(bl=>ok(bl||f),'image/jpeg',.86))}catch(e){return f}}
