@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Admin Panel</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<style>
+:root{--n:#0b1f5c;--g:#e3a400;--bg:#f6f7fb;--m:#6b7390}
+*{box-sizing:border-box;margin:0}body{font:14px system-ui,Segoe UI,sans-serif;background:var(--bg);color:#14172b}
+button,input,select,textarea{font:inherit}button{cursor:pointer;border:0;border-radius:10px;padding:8px 12px;background:#e8ebf5;color:var(--n);font-weight:600}
+header{background:var(--n);color:#fff;display:flex;justify-content:space-between;align-items:center;padding:12px 14px;position:sticky;top:0;z-index:5}
+header span{display:flex;gap:10px;align-items:center}header a{color:var(--g);text-decoration:none}
+nav{display:flex;gap:6px;overflow-x:auto;padding:10px;background:#fff;box-shadow:0 2px 8px #0b1f5c14}nav button{white-space:nowrap}nav .on{background:var(--n);color:#fff}
+main{max-width:900px;margin:auto;padding:12px}.box{background:#fff;border-radius:14px;padding:14px;margin-bottom:10px;box-shadow:0 2px 10px #0b1f5c10}
+.rw{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}.box.rw>span:last-child{display:flex;gap:6px}
+small,.sm{color:var(--m);font-size:12px}.box small{display:block}.em{text-align:center;color:var(--m);padding:30px}
+label{display:block;font-size:12px;font-weight:600;color:var(--m);margin:10px 0 4px}.ck{display:flex;gap:8px;align-items:center;color:#14172b;font-size:14px}
+input:not([type=checkbox]),select,textarea{width:100%;padding:10px;border:1.5px solid #d9ddec;border-radius:10px;background:#fff}
+.b{background:var(--n);color:#fff;margin:12px 0 0;padding:11px 18px}.d{background:#fde8e8;color:#b42318}.off{opacity:.45}
+.g{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px}.st{background:#fff;border-radius:14px;padding:14px}.st b{font-size:22px;color:var(--n)}.st small{display:block}
+.thumb{width:38px;height:38px;border-radius:8px;object-fit:cover;vertical-align:middle;margin-right:8px}
+.ov{position:fixed;inset:0;background:#0007;z-index:20;display:flex;align-items:flex-end;justify-content:center}.sheet{background:#fff;width:100%;max-width:560px;max-height:90vh;overflow:auto;border-radius:18px 18px 0 0;padding:16px}
+.sheet .rw{margin-top:14px}#ts{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#14172b;color:#fff;padding:10px 16px;border-radius:12px;z-index:50;display:none}
+.lg{max-width:360px;margin:12vh auto;padding:0 14px}ul{padding-left:18px;margin:6px 0}
+</style></head><body>
+<div id="app"></div><div id="md"></div><div id="ts"></div>
+<script>
+const ADMIN_EMAIL='admin@budani.com'; /* Supabase > Authentication > Users me isi email se user banao */
+let SUPABASE_URL='https://tyyfcwrlpdalxwnvrtni.supabase.co',SUPABASE_KEY='sb_publishable_K6x1iXvP5YI4a_0UoKP1Dw_lW_HdIyz',sb;
+try{const c=JSON.parse(localStorage.getItem('bd_cfg')||'null');if(c){SUPABASE_URL=c.u;SUPABASE_KEY=c.k}}catch(e){}
+const $=s=>document.querySelector(s),esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const toast=m=>{const t=$('#ts');t.textContent=m;t.style.display='block';clearTimeout(t._t);t._t=setTimeout(()=>t.style.display='none',2500)};
+const ST=['placed','confirmed','packed','shipped','out_for_delivery','delivered','cancelled'];
+const F={
+products:[['name','Product name','t'],['category','Category','cat'],['price','Price (₹)','n'],['mrp','MRP / cut price (₹)','n'],['description','Description','a'],['images','Images (one URL per line, or upload)','img'],['colors','Colors (comma separated)','l'],['sizes','Sizes (comma separated; blank = default sizes)','l'],['active','Visible on website','c']],
+categories:[['k','Key (e.g. tshirt)','t'],['name','Display name','t'],['sort','Sort order','n'],['active','Active','c']],
+coupons:[['code','Coupon code','t'],['type','Type','s:percent,flat'],['value','Value (% or ₹)','n'],['min_order','Minimum order (₹)','n'],['active','Active','c']]};
+const PK={products:'id',categories:'k',coupons:'code',orders:'id'};
+const SUM={products:r=>`${r.images?.[0]?`<img class="thumb" src="${esc(r.images[0])}">`:''}${esc(r.name)} <small>${esc(r.category||'-')} • ₹${r.price}${r.mrp?' (MRP ₹'+r.mrp+')':''}</small>`,categories:r=>`${esc(r.name)} <small>key: ${esc(r.k)} • order ${r.sort}</small>`,coupons:r=>`<b>${esc(r.code)}</b> <small>${r.type=='flat'?'₹'+r.value:r.value+'%'} off • min ₹${r.min_order}</small>`};
+let tab='dash',CATS=[],ROWS={},EDIT={},PGS={};
+const loadCats=async()=>CATS=(await sb.from('categories').select('*').order('sort')).data||[];
+
+/* ---------- auth ---------- */
+function setup(){$('#app').innerHTML=`<div class="lg box"><h2 style="color:var(--n)">Connect Supabase</h2><p class="sm">Supabase > Project Settings > API se Project URL aur anon public key copy karo.</p><label>Project URL</label><input id="cu" placeholder="https://xxxx.supabase.co"><label>Anon public key</label><textarea id="ck" rows="3"></textarea><button class="b" style="width:100%" onclick="saveCfg()">Save &amp; Continue</button></div>`}
+function saveCfg(){const u=$('#cu').value.trim(),k=$('#ck').value.trim();if(!/^https:\/\/.+/.test(u)||k.length<20){toast('Valid URL aur key daalo');return}localStorage.setItem('bd_cfg',JSON.stringify({u,k}));SUPABASE_URL=u;SUPABASE_KEY=k;boot()}
+function login(){$('#app').innerHTML=`<div class="lg box"><h2 style="color:var(--n)">Admin Login</h2>${ADMIN_EMAIL?'':'<label>Email</label><input id="em" type="email">'}<label>Password</label><input id="pw" type="password" autofocus onkeydown="if(event.key=='Enter')doLogin()"><button class="b" style="width:100%" onclick="doLogin()">Login</button><p class="sm" style="margin-top:12px"><a href="#" onclick="localStorage.removeItem('bd_cfg');location.reload();return false">Change Supabase keys</a></p></div>`}
+async function doLogin(){const {error}=await sb.auth.signInWithPassword({email:ADMIN_EMAIL||$('#em').value.trim(),password:$('#pw').value});if(error){toast(error.message=='Invalid login credentials'?'Wrong password':error.message);return}await boot()}
+async function out(){await sb.auth.signOut();login()}
+async function boot(){if(typeof supabase==='undefined'){$('#app').innerHTML='<div class="lg box"><h3>Supabase library load nahi hui</h3><p class="sm">Internet check karo ya ad-blocker band karke page refresh karo.</p></div>';return}
+if(!sb){if(!/^https?:\/\//.test(SUPABASE_URL)||SUPABASE_KEY.startsWith('YOUR_')){setup();return}try{sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY)}catch(e){setup();return}}
+const {data:{session}}=await sb.auth.getSession();if(!session){login();return}
+const {data:ok}=await sb.rpc('is_admin');if(!ok){toast('This account is not an admin');await sb.auth.signOut();login();return}shell()}
+
+/* ---------- shell ---------- */
+const TABS=[['dash','Dashboard'],['orders','Orders'],['products','Products'],['categories','Categories'],['coupons','Coupons'],['settings','Settings'],['pages','Pages']];
+async function shell(){await loadCats();$('#app').innerHTML=`<header><b>⚙ Admin Panel</b><span><a href="index.html" target="_blank">View site ↗</a><button onclick="out()">Logout</button></span></header><nav>${TABS.map(t=>`<button id="t-${t[0]}" onclick="go('${t[0]}')">${t[1]}</button>`).join('')}</nav><main id="m"></main>`;go(tab)}
+async function go(t){tab=t;document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b.id=='t-'+t));$('#m').innerHTML='<p class="em">Loading...</p>';try{await V[t]()}catch(e){console.error(e);$('#m').innerHTML='<p class="em">Error: '+esc(e.message)+'</p>'}}
+
+/* ---------- generic CRUD ---------- */
+const crud=t=>async()=>{const {data,error}=await sb.from(t).select('*').order(t=='products'?'created_at':t=='categories'?'sort':'code',{ascending:t!='products'});if(error)throw error;ROWS[t]=data||[];
+$('#m').innerHTML=`<button class="b" style="margin:0 0 10px" onclick="edit('${t}')">+ Add new</button>`+(ROWS[t].map((r,i)=>`<div class="box rw"><span class="${r.active===false?'off':''}">${SUM[t](r)}</span><span><button onclick="edit('${t}',${i})">Edit</button><button class="d" onclick="del('${t}',${i})">Delete</button></span></div>`).join('')||'<p class="em">Nothing here yet</p>')};
+function edit(t,i){const r=i==null?{active:true,type:'percent',min_order:0,sort:CATS.length+1,category:CATS[0]?.k}:ROWS[t][i];EDIT={t,i};
+const h=F[t].map(([k,l,ty])=>{const v=r[k];let x;
+if(ty=='c')return `<label class="ck"><input type="checkbox" id="f-${k}" ${v===false?'':'checked'}> ${l}</label>`;
+if(ty=='a')x=`<textarea id="f-${k}" rows="3">${esc(v||'')}</textarea>`;
+else if(ty=='cat')x=`<select id="f-${k}">${CATS.map(c=>`<option value="${esc(c.k)}" ${c.k==v?'selected':''}>${esc(c.name)}</option>`).join('')}</select>`;
+else if(ty[0]=='s')x=`<select id="f-${k}">${ty.slice(2).split(',').map(o=>`<option ${o==v?'selected':''}>${o}</option>`).join('')}</select>`;
+else if(ty=='img')x=`<textarea id="f-${k}" rows="3">${esc((v||[]).join('\n'))}</textarea><input type="file" accept="image/*" multiple onchange="upl(this,'f-${k}',1)">`;
+else if(ty=='l')x=`<input id="f-${k}" value="${esc((v||[]).join(', '))}">`;
+else x=`<input id="f-${k}" type="${ty=='n'?'number':'text'}" step="any" value="${esc(v??'')}" ${i!=null&&k==PK[t]?'readonly':''}>`;
+return `<label>${l}</label>${x}`}).join('');
+$('#md').innerHTML=`<div class="ov"><div class="sheet"><h3>${i==null?'Add':'Edit'} ${t.slice(0,-1)=='categorie'?'category':t.replace(/s$/,'')}</h3>${h}<div class="rw"><button onclick="$('#md').innerHTML=''">Cancel</button><button class="b" style="margin:0" onclick="save()">Save</button></div></div></div>`}
+async function save(){const {t,i}=EDIT,o={};
+for(const [k,l,ty] of F[t]){const e=$('#f-'+k);let v=ty=='c'?e.checked:e.value.trim();
+if(ty=='n')v=v===''?null:+v;if(ty=='l')v=v?v.split(',').map(x=>x.trim()).filter(Boolean):(k=='sizes'?null:[]);if(ty=='img')v=v?v.split('\n').map(x=>x.trim()).filter(Boolean):[];o[k]=v}
+if(t=='categories')o.k=o.k.toLowerCase().replace(/[^a-z0-9_-]/g,'');if(t=='coupons')o.code=o.code.toUpperCase();
+if(!o[F[t][0][0]]||(t=='products'&&o.price==null)){toast('Please fill the required fields');return}
+const {error}=i==null?await sb.from(t).insert(o):await sb.from(t).update(o).eq(PK[t],ROWS[t][i][PK[t]]);
+if(error){toast(error.message);return}$('#md').innerHTML='';toast('Saved');if(t=='categories')await loadCats();go(tab)}
+async function del(t,i){if(!confirm('Delete permanently?'))return;const {error}=await sb.from(t).delete().eq(PK[t],ROWS[t][i][PK[t]]);if(error){toast(error.message);return}toast('Deleted');if(t=='categories')await loadCats();go(tab)}
+async function upl(inp,id,multi){for(const f of inp.files){const p=Date.now()+'-'+f.name.replace(/[^\w.-]/g,'_');const {error}=await sb.storage.from('media').upload(p,f);if(error){toast(error.message);continue}
+const u=sb.storage.from('media').getPublicUrl(p).data.publicUrl,e=$('#'+id);e.value=multi&&e.value?e.value+'\n'+u:u}toast('Image uploaded')}
+
+/* ---------- views ---------- */
+const cnt=async t=>(await sb.from(t).select('*',{count:'exact',head:true})).count||0;
+const V={
+dash:async()=>{const {data}=await sb.from('orders').select('total,status'),o=data||[],live=o.filter(x=>x.status!='cancelled');
+$('#m').innerHTML=`<div class="g">${[['Total orders',o.length],['New orders',o.filter(x=>x.status=='placed').length],['Revenue','₹'+live.reduce((a,x)=>a+ +x.total,0).toLocaleString('en-IN')],['Products',await cnt('products')],['Coupons',await cnt('coupons')]].map(([a,b])=>`<div class="st"><small>${a}</small><b>${b}</b></div>`).join('')}</div>`},
+orders:async()=>{const {data,error}=await sb.from('orders').select('*').order('created_at',{ascending:false}).limit(200);if(error)throw error;ROWS.orders=data||[];
+$('#m').innerHTML=ROWS.orders.map((o,n)=>`<div class="box"><div class="rw"><b>${esc(o.order_id)}</b><small>${new Date(o.created_at).toLocaleString('en-IN')}</small></div><p>${esc(o.customer_name)} • <a href="tel:${esc(o.phone)}">${esc(o.phone)}</a></p><p class="sm">${esc(o.address)}</p><ul>${(o.items||[]).map(i=>`<li>${esc(i.name)} • ${esc(i.size)}${i.color?' • '+esc(i.color):''} × ${i.qty} — ₹${i.price*i.qty}</li>`).join('')}</ul><p class="sm">Subtotal ₹${o.subtotal} • Discount ₹${o.discount}${o.coupon?' ('+esc(o.coupon)+')':''} • Delivery ₹${o.delivery} • ${esc(o.payment_method)}</p><div class="rw" style="margin-top:8px"><b>Total ₹${o.total}</b><span><select onchange="ost(${n},this.value)">${ST.map(s=>`<option ${s==o.status?'selected':''}>${s}</option>`).join('')}</select> <button class="d" onclick="del('orders',${n})">Delete</button></span></div></div>`).join('')||'<p class="em">No orders yet</p>'},
+products:crud('products'),categories:crud('categories'),coupons:crud('coupons'),
+settings:async()=>{const {data}=await sb.from('settings').select('value').eq('key','site').maybeSingle(),x=data?.value||{};
+const f=(k,l,ty='text')=>`<label>${l}</label><input id="s-${k}" type="${ty}" value="${esc(x[k]??'')}">`;
+$('#m').innerHTML=`<div class="box"><h3>Store Settings</h3>${f('name','Store name')}${f('short','Header short name')}${f('tagline','Tagline')}${f('phone','Phone (as displayed)')}${f('wa','WhatsApp number with country code (e.g. 918923538910)')}${f('free_ship','Free delivery above (₹)','number')}${f('ship','Delivery charge (₹)','number')}<label>Logo URL</label><input id="s-logo" value="${esc(x.logo||'')}"><input type="file" accept="image/*" onchange="upl(this,'s-logo')" style="margin-top:6px"><label>Scrolling ticker lines (one per line)</label><textarea id="s-ticker" rows="4">${esc((x.ticker||[]).join('\n'))}</textarea><label class="ck"><input type="checkbox" id="s-diwali" ${x.diwali===false?'':'checked'}> Show festival banner</label>${f('fest_title','Festival banner title')}${f('fest_sub','Festival banner subtitle')}<button class="b" onclick="saveS()">Save settings</button></div>`},
+pages:async()=>{const {data}=await sb.from('settings').select('value').eq('key','pages').maybeSingle();PGS=data?.value||{};
+$('#m').innerHTML=`<div class="box"><h3>Website Pages</h3><p class="sm">Leave content empty to keep the built-in default text. HTML allowed. Note: custom Support/Contact content replaces the built-in buttons and form.</p><label>Page</label><select id="p-k" onchange="pfill()">${['about','privacy','terms','support','contact'].map(k=>`<option>${k}</option>`).join('')}</select><label>Title</label><input id="p-t"><label>Subtitle</label><input id="p-s"><label>Content (HTML)</label><textarea id="p-h" rows="12"></textarea><button class="b" onclick="saveP()">Save page</button></div>`;pfill()}};
+const ost=async(n,v)=>{const {error}=await sb.from('orders').update({status:v}).eq('id',ROWS.orders[n].id);toast(error?error.message:'Status updated')};
+async function saveS(){const g=k=>$('#s-'+k).value.trim(),o={};
+['name','short','tagline','phone','wa','logo','fest_title','fest_sub'].forEach(k=>o[k]=g(k));
+['free_ship','ship'].forEach(k=>o[k]=g(k)===''?null:+g(k));o.ticker=g('ticker').split('\n').map(x=>x.trim()).filter(Boolean);o.diwali=$('#s-diwali').checked;
+const {error}=await sb.from('settings').upsert({key:'site',value:o,updated_at:new Date().toISOString()});toast(error?error.message:'Settings saved')}
+function pfill(){const p=PGS[$('#p-k').value]||{};$('#p-t').value=p.title||'';$('#p-s').value=p.sub||'';$('#p-h').value=p.html||''}
+async function saveP(){const k=$('#p-k').value,h=$('#p-h').value.trim();if(h)PGS[k]={title:$('#p-t').value.trim(),sub:$('#p-s').value.trim(),html:h};else delete PGS[k];
+const {error}=await sb.from('settings').upsert({key:'pages',value:PGS,updated_at:new Date().toISOString()});toast(error?error.message:'Page saved')}
+boot();
+</script></body></html>
